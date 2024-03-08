@@ -1,60 +1,100 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Collections;
+
 using UnityEngine;
 
-public class SelectTeam : MonoBehaviour
+using Mirror;
+
+public class SelectTeam : NetworkBehaviour
 {
     [SerializeField] private GameObject _playerPrefab;
+
+    [SerializeField] private Camera _startCamera;
 
     [SerializeField] private List<GameObject> _radiantSpawnPoints;
     [SerializeField] private List<GameObject> _direSpawnPoints;
 
-    private GameObject _currentPlayer;
+    private List<CharacterController> _characterControllers;
 
-    private Camera _playerCamera;
+    private GameObject _playerGameObject;
+
+    private string _teamSelected;
+
+    private void Start()
+    {
+        StartCoroutine(FindPlayerObject());
+    }
 
     public void RadiantSelected()
     {
-        GameObject spawnPoint = _radiantSpawnPoints[Random.Range(0, _radiantSpawnPoints.Count)];
+        if (_playerGameObject.GetComponent<NetworkBehaviour>().isLocalPlayer)
+        {
+            GameObject spawnPoint = _radiantSpawnPoints[Random.Range(0, _radiantSpawnPoints.Count)];
 
-        _currentPlayer = InstantiatePlayer(spawnPoint);
-        _currentPlayer.tag = "Radiant";
+            _teamSelected = "Radiant";
 
-        SetTagToChildObject(_currentPlayer, "ThrowHookPosition", "Radiant");
+            SpawnPlayer(spawnPoint, _teamSelected);
 
-        SwitchCameraToPlayer();
+        }
     }
 
     public void DireSelected()
     {
-        GameObject spawnPoint = _direSpawnPoints[Random.Range(0, _direSpawnPoints.Count)];
+        if (_playerGameObject.GetComponent<NetworkBehaviour>().isLocalPlayer)
+        {
+            GameObject spawnPoint = _direSpawnPoints[Random.Range(0, _direSpawnPoints.Count)];
 
-        _currentPlayer = InstantiatePlayer(spawnPoint);
-        _currentPlayer.tag = "Dire";
+            _teamSelected = "Dire";
 
-        SetTagToChildObject(_currentPlayer, "ThrowHookPosition", "Dire");
-
-        SwitchCameraToPlayer();
+            SpawnPlayer(spawnPoint, _teamSelected);
+        }
     }
 
-    private GameObject InstantiatePlayer(GameObject spawnPoint)
+    private IEnumerator FindPlayerObject()
     {
-        GameObject player = Instantiate(_playerPrefab, spawnPoint.transform.position, spawnPoint.transform.rotation);
+        while (_playerGameObject == null)
+        {
+            _characterControllers = FindObjectsOfType<CharacterController>().ToList();
 
-        _playerCamera = player.GetComponentInChildren<Camera>();
+            foreach (CharacterController characterController in _characterControllers)
+            {
+                if (characterController.gameObject.GetComponent<NetworkBehaviour>().isOwned)
+                    _playerGameObject = characterController.gameObject;
+            }
+            yield return new WaitForFixedUpdate();
+        }
 
-        return player;
+        _playerGameObject.SetActive(false);
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 
-    private void SwitchCameraToPlayer()
+    private void SpawnPlayer(GameObject spawnPoint, string tag)
     {
-        _playerCamera.enabled = true;
-        Camera.main.enabled = false;
+        _playerGameObject.transform.position = spawnPoint.transform.position;
+        _playerGameObject.transform.rotation = spawnPoint.transform.rotation;
+
+        _playerGameObject.tag = tag;
+
+        SetTagToChildObject(_playerGameObject, "ThrowHookPosition", tag);
+
+        SwitchCameraToPlayer(_playerGameObject, tag);
     }
 
     private void SetTagToChildObject(GameObject parentObject, string childObjectName, string tag)
     {
         Transform childTransform = parentObject.transform.Find(childObjectName);
-
         childTransform.gameObject.tag = tag;
+    }
+
+    private void SwitchCameraToPlayer(GameObject player, string tag)
+    {
+        player.SetActive(true);
+        _startCamera.enabled = false;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 }

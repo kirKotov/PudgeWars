@@ -1,8 +1,9 @@
 ﻿using UnityEngine;
+using Mirror;
 
 [RequireComponent(typeof(CharacterController))]
 
-public class TPSController : MonoBehaviour
+public class TPSController : NetworkBehaviour
 {
     [SerializeField] private Transform _playerCameraParent;
 
@@ -27,31 +28,34 @@ public class TPSController : MonoBehaviour
 
     private void Update()
     {
-        if (_characterController.isGrounded)
+        if (isOwned)
         {
-            Vector3 forward = transform.TransformDirection(Vector3.forward);
-            Vector3 right = transform.TransformDirection(Vector3.right);
+            if (_characterController.isGrounded)
+            {
+                Vector3 forward = transform.TransformDirection(Vector3.forward);
+                Vector3 right = transform.TransformDirection(Vector3.right);
 
-            float curSpeedX = _canMove ? _speed * Input.GetAxis("Vertical") : 0;
-            float curSpeedY = _canMove ? _speed * Input.GetAxis("Horizontal") : 0;
+                float curSpeedX = _canMove ? _speed * Input.GetAxis("Vertical") : 0;
+                float curSpeedY = _canMove ? _speed * Input.GetAxis("Horizontal") : 0;
 
-            _moveDirection = (forward * curSpeedX) + (right * curSpeedY);
-        }
+                _moveDirection = (forward * curSpeedX) + (right * curSpeedY);
+            }
 
-        _moveDirection.y -= _gravity * Time.deltaTime;
+            _moveDirection.y -= _gravity * Time.deltaTime;
 
-        _characterController.Move(_moveDirection * Time.deltaTime);
+            _characterController.Move(_moveDirection * Time.deltaTime);
 
-        if (_canMove)
-        {
-            _rotation.y += Input.GetAxis("Mouse X") * _lookSpeed;
-            _rotation.x += -Input.GetAxis("Mouse Y") * _lookSpeed;
+            if (_canMove)
+            {
+                _rotation.y += Input.GetAxis("Mouse X") * _lookSpeed;
+                _rotation.x += -Input.GetAxis("Mouse Y") * _lookSpeed;
 
-            _rotation.x = Mathf.Clamp(_rotation.x, -_lookXLimit, _lookXLimit);
+                _rotation.x = Mathf.Clamp(_rotation.x, -_lookXLimit, _lookXLimit);
 
-            _playerCameraParent.localRotation = Quaternion.Euler(_rotation.x, 0, 0);
+                _playerCameraParent.localRotation = Quaternion.Euler(_rotation.x, 0, 0);
 
-            transform.eulerAngles = new Vector2(0, _rotation.y);
+                transform.eulerAngles = new Vector2(0, _rotation.y);
+            }
         }
     }
 }

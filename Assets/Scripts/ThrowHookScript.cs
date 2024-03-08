@@ -1,6 +1,8 @@
 using UnityEngine;
 
-public class ThrowHookScript : MonoBehaviour
+using Mirror;
+
+public class ThrowHookScript : NetworkBehaviour
 {
     [SerializeField] private GameObject _hookPrefab;
 
@@ -10,12 +12,10 @@ public class ThrowHookScript : MonoBehaviour
     [SerializeField] private float _maxDistance = 15f;
 
     private GameObject _currentHook;
+    private GameObject _throwHookPosition;
 
     private LineRenderer _lineRenderer;
-
     private TPSController _TPSControllerScript;
-
-    private GameObject _throwHookPosition;
 
     private bool _isReturning = false;
 
@@ -30,9 +30,9 @@ public class ThrowHookScript : MonoBehaviour
 
     private void Update()
     {
-        if (!_isReturning && Input.GetMouseButtonDown(0) && _currentHook == null)
+        if (!_isReturning && Input.GetMouseButtonDown(0) && _currentHook == null && isLocalPlayer)
         {
-            ThrowHook();
+            CmdThrowHook();
         }
 
         if (_currentHook != null)
@@ -50,31 +50,50 @@ public class ThrowHookScript : MonoBehaviour
         }
     }
 
-    private void ThrowHook()
+    [Command]
+    private void CmdThrowHook()
     {
         _currentHook = Instantiate(_hookPrefab, _throwHookPosition.transform.position, Quaternion.identity);
-
         _currentHook.tag = _throwHookPosition.tag;
 
         Vector3 hookDirection = transform.forward;
 
         _currentHook.transform.forward = hookDirection;
-
         _isReturning = false;
 
-        _TPSControllerScript.enabled = false;
+        NetworkServer.Spawn(_currentHook);
+
+        RpcDisableController();
     }
 
     private void UpdateLineRenderer()
     {
-        _lineRenderer.positionCount = 2;
+        if (_currentHook != null)
+        {
+            if (isServer)
+            {
+                RpcUpdateLineRenderer(_throwHookPosition.transform.position, _currentHook.transform.position);
+            }
+        }
+    }
 
-        _lineRenderer.SetPosition(0, _throwHookPosition.transform.position);
-        _lineRenderer.SetPosition(1, _currentHook.transform.position);
+    [ClientRpc]
+    private void RpcUpdateLineRenderer(Vector3 startPos, Vector3 endPos)
+    {
+        if (_lineRenderer != null)
+        {
+            _lineRenderer.positionCount = 2;
+
+            _lineRenderer.SetPosition(0, startPos);
+            _lineRenderer.SetPosition(1, endPos);
+        }
     }
 
     private void MoveHook()
     {
+        if (_currentHook == null)
+            return;
+
         float step = _hookSpeed * Time.deltaTime;
 
         _currentHook.transform.position += _currentHook.transform.forward * step;
@@ -87,6 +106,9 @@ public class ThrowHookScript : MonoBehaviour
 
     private void ReturnHook()
     {
+        if (_currentHook == null)
+            return;
+
         float step = _returnSpeed * Time.deltaTime;
 
         _currentHook.transform.position = Vector3.MoveTowards(_currentHook.transform.position, _throwHookPosition.transform.position, step);
@@ -97,9 +119,38 @@ public class ThrowHookScript : MonoBehaviour
 
             Destroy(_currentHook);
 
-            _lineRenderer.positionCount = 0;
+            RpcResetLineRenderer();
 
-            _TPSControllerScript.enabled = true;
+            RpcEnableController();
+
+            _currentHook = null;
         }
+    }
+
+    [ClientRpc]
+    private void RpcResetLineRenderer()
+    {
+        if (_lineRenderer != null)
+        {
+            _lineRenderer.positionCount = 0;
+        }
+    }
+
+    [ClientRpc]
+    private void RpcEnableController()
+    {
+        if (!isLocalPlayer)
+            return;
+
+        _TPSControllerScript.enabled = true;
+    }
+
+    [ClientRpc]
+    private void RpcDisableController()
+    {
+        if (!isLocalPlayer)
+            return;
+
+        _TPSControllerScript.enabled = false;
     }
 }

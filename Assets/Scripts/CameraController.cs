@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
+using Mirror;
 
-public class CameraController : MonoBehaviour
+public class CameraController : NetworkBehaviour
 {
     [SerializeField] private LayerMask _wallMask;
 
@@ -18,35 +19,49 @@ public class CameraController : MonoBehaviour
 
     private void Start()
     {
-        _defaultPos = transform.localPosition;
+        if (isLocalPlayer)
+        {
+            _defaultPos = transform.localPosition;
 
-        _directionNormalized = _defaultPos.normalized;
+            _directionNormalized = _defaultPos.normalized;
 
-        _parentTransform = transform.parent;
+            _parentTransform = transform.parent;
 
-        _defaultDistance = Vector3.Distance(_defaultPos, Vector3.zero);
+            _defaultDistance = Vector3.Distance(_defaultPos, Vector3.zero);
 
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+        else
+        {
+            gameObject.SetActive(false);
+        }
     }
 
     private void LateUpdate()
     {
-        Vector3 currentPos = _defaultPos;
-
-        RaycastHit hit;
-
-        Vector3 dirTmp = _parentTransform.TransformPoint(_defaultPos) - _referenceTransform.position;
-
-        if (Physics.SphereCast(_referenceTransform.position, _collisionOffset, dirTmp, out hit, _defaultDistance, _wallMask))
+        if (isLocalPlayer)
         {
-            currentPos = (_directionNormalized * (hit.distance - _collisionOffset));
+            Vector3 currentPos = _defaultPos;
 
-            transform.localPosition = currentPos;
+            RaycastHit hit;
+
+            Vector3 dirTmp = _parentTransform.TransformPoint(_defaultPos) - _referenceTransform.position;
+
+            if (Physics.SphereCast(_referenceTransform.position, _collisionOffset, dirTmp, out hit, _defaultDistance, _wallMask))
+            {
+                currentPos = (_directionNormalized * (hit.distance - _collisionOffset));
+
+                transform.localPosition = currentPos;
+            }
+            else
+            {
+                transform.localPosition = Vector3.Lerp(transform.localPosition, currentPos, Time.deltaTime * _cameraSpeed);
+            }
         }
         else
         {
-            transform.localPosition = Vector3.Lerp(transform.localPosition, currentPos, Time.deltaTime * _cameraSpeed);
+            return;
         }
     }
 }
